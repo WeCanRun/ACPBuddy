@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>大模型ACP刷题助手</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --primary: #0066cc;
+            --primary-dark: #0052a3;
+            --success: #10b981;
+            --error: #ef4444;
+            --text: #1a1a1a;
+            --text-secondary: #666666;
+            --text-light: #999999;
+            --border: #e5e7eb;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+        }
+        [data-theme="dark"] {
+            --bg: #1a1a2e;
+            --card: #252542;
+            --primary: #4da6ff;
+            --primary-dark: #3d8fd9;
+            --success: #34d399;
+            --error: #f87171;
+            --text: #e5e5e5;
+            --text-secondary: #a0a0a0;
+            --text-light: #707070;
+            --border: #3a3a5c;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6; }
+        .container { max-width: 640px; margin: 0 auto; padding: 16px; }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .header { text-align: center; padding: 24px 0 20px; position: relative; }
+        .header h1 { font-size: 22px; font-weight: 600; color: var(--text); }
+        .header p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+        .theme-toggle { position: absolute; top: 16px; right: 16px; padding: 8px 12px; border: 1px solid var(--border); background: var(--card); font-size: 16px; border-radius: 8px; cursor: pointer; box-shadow: var(--shadow); }
+        .theme-toggle:hover { background: var(--bg); }
+        .section-title { font-size: 15px; font-weight: 600; color: var(--text-secondary); padding: 12px 0 8px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+        .nav-tabs { display: flex; gap: 6px; padding: 12px 0; }
+        .nav-tab { flex: 1; padding: 10px 8px; border: none; background: var(--card); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: var(--shadow); }
+        .nav-tab:hover { background: var(--bg); }
+        .nav-tab.active { background: var(--primary); color: white; }
+        .tab-badge { background: var(--error); color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .nav-tab.active .tab-badge { background: white; color: var(--primary); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .filter-bar { display: flex; gap: 8px; padding: 0 0 12px; }
+        .filter-bar select { flex: 1; padding: 8px 12px; border: 1px solid var(--border); background: var(--card); font-size: 13px; border-radius: 8px; cursor: pointer; color: var(--text); }
+        .paper-list { display: flex; flex-direction: column; gap: 12px; }
+        .paper-card { background: var(--card); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.15s ease; border: 1px solid transparent; }
+        .paper-card:hover { box-shadow: var(--shadow-md); border-color: var(--primary); }
+        .paper-card.completed { border-left: 3px solid var(--success); }
+        .paper-card.last-practiced { border: 2px solid var(--primary); background: linear-gradient(135deg, var(--card) 0%, rgba(0,102,204,0.05) 100%); }
+        .paper-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .paper-name { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+        .badge { font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: 500; }
+        .badge-start { background: #e6f0ff; color: var(--primary); }
+        .badge-done { background: #dcfce7; color: var(--success); }
+        .badge-continue { background: #fef3c7; color: #b45309; }
+        .paper-info { font-size: 13px; color: var(--text-secondary); display: flex; gap: 16px; }
+        .paper-stat { display: flex; align-items: center; gap: 4px; }
+        .quiz-header { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+        .quiz-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .quiz-back { font-size: 14px; color: var(--primary); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .quiz-back:hover { text-decoration: underline; }
+        .quiz-title { font-size: 14px; font-weight: 500; color: var(--text); }
+        .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+        .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.3s ease; }
+        .progress-info { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+        .progress-stats { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; }
+        .stat-correct { color: var(--success); }
+        .stat-wrong { color: var(--error); }
+        .stat-pending { color: var(--text-light); }
+        .nav-row { display: flex; gap: 10px; margin-bottom: 12px; }
+        .nav-btn { flex: 1; padding: 12px; border: 1px solid var(--border); background: var(--card); border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
+        .nav-btn:hover:not(:disabled) { background: var(--bg); }
+        .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .nav-btn.primary { background: var(--primary); color: white; border-color: var(--primary); }
+        .nav-btn.primary:hover:not(:disabled) { background: var(--primary-dark); }
+        .nav-btn.finish { background: var(--success); color: white; border-color: var(--success); }
+        .question-card { background: var(--card); border-radius: 12px; padding: 20px 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+        .question-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .q-type { font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: 500; }
+        .q-single { background: #dbeafe; color: #1d4ed8; }
+        .q-multiple { background: #fef3c7; color: #b45309; }
+        .q-num { font-size: 12px; color: var(--text-secondary); }
+        .q-text { font-size: 15px; line-height: 1.7; margin-bottom: 16px; }
+        .options { display: flex; flex-direction: column; gap: 8px; }
+        .option { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s ease; background: var(--card); }
+        .option:hover:not(.disabled) { border-color: var(--primary); background: #f8faff; }
+        .option.selected { border-color: var(--primary); background: #f0f7ff; }
+        .option.correct { border-color: var(--success); background: #f0fdf4; }
+        .option.wrong { border-color: var(--error); background: #fef2f2; }
+        .option.disabled { cursor: default; }
+        .opt-key { width: 26px; height: 26px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; transition: all 0.15s ease; }
+        .option.selected .opt-key { background: var(--primary); color: white; }
+        .option.correct .opt-key { background: var(--success); color: white; }
+        .option.wrong .opt-key { background: var(--error); color: white; }
+        .opt-text { font-size: 14px; line-height: 1.6; flex: 1; padding-top: 2px; }
+        .confirm-btn { margin-top: 16px; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%; transition: all 0.15s ease; }
+        .confirm-btn:hover:not(:disabled) { background: var(--primary-dark); }
+        .confirm-btn:disabled { background: var(--border); color: var(--text-light); cursor: not-allowed; }
+        .jump-section { background: var(--card); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+        .jump-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+        .jump-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+        .jump-item { padding: 8px 4px; text-align: center; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; border: 1px solid var(--border); background: var(--bg); }
+        .jump-item:hover { transform: scale(1.1); }
+        .jump-item.current { background: var(--primary); color: white; border-color: var(--primary); }
+        .jump-item.correct { background: #dcfce7; color: var(--success); border-color: #86efac; }
+        .jump-item.wrong { background: #fee2e2; color: var(--error); border-color: #fca5a5; }
+        .jump-item.pending { color: var(--text-light); }
+        .result-card { background: var(--card); border-radius: 12px; padding: 24px; box-shadow: var(--shadow-md); text-align: center; margin-bottom: 16px; }
+        .result-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+        .score { font-size: 48px; font-weight: 700; margin-bottom: 4px; }
+        .score .correct { color: var(--primary); }
+        .score .total { color: var(--text-light); }
+        .score-rate { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; }
+        .result-stats { display: flex; justify-content: center; gap: 24px; padding: 12px; background: var(--bg); border-radius: 8px; font-size: 13px; }
+        .result-btns { display: flex; gap: 12px; margin-top: 20px; justify-content: center; }
+        .result-btn { flex: 1; padding: 12px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; border: none; }
+        .result-btn.primary { background: var(--primary); color: white; }
+        .result-btn.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+        .result-btn.tertiary { background: transparent; color: var(--primary); border: 1px solid var(--primary); font-size: 13px; padding: 10px; }
+        .result-btn.tertiary:hover { background: rgba(0, 102, 204, 0.05); }
+        .result-btn:hover { opacity: 0.9; }
+        .wrong-section { margin-top: 16px; }
+        .wrong-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        .wrong-list { display: flex; flex-direction: column; gap: 12px; }
+        .wrong-item { background: var(--card); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); border-left: 3px solid var(--error); }
+        .wrong-num { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
+        .wrong-text { font-size: 13px; margin-bottom: 10px; line-height: 1.6; }
+        .wrong-answer { font-size: 12px; padding: 8px 10px; background: #fef2f2; border-radius: 6px; margin-bottom: 6px; }
+        .wrong-answer .label { color: var(--error); font-weight: 600; }
+        .wrong-correct { font-size: 12px; padding: 8px 10px; background: #f0fdf4; border-radius: 6px; margin-bottom: 8px; }
+        .wrong-correct .label { color: var(--success); font-weight: 600; }
+        .wrong-explain { font-size: 12px; padding: 10px; background: #fffbeb; border-radius: 6px; color: #92400e; line-height: 1.6; }
+        .status-badge { display: inline-block; width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; font-size: 11px; }
+        .status-badge.correct { background: var(--success); color: white; }
+        .status-badge.wrong { background: var(--error); color: white; }
+        .status-badge.pending { background: var(--border); color: var(--text-light); }
+        .all-correct { background: #f0fdf4; padding: 20px; border-radius: 12px; text-align: center; color: var(--success); font-size: 14px; font-weight: 500; }
+        .has-unanswered { background: #fef3c7; padding: 12px; border-radius: 8px; text-align: center; color: #92400e; font-size: 13px; margin-bottom: 12px; }
+        .wrong-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
+        .wrong-count { font-size: 14px; font-weight: 600; color: var(--text); }
+        .btn-small { padding: 6px 12px; border: 1px solid var(--border); background: var(--card); font-size: 12px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); }
+        .btn-small:hover { background: var(--error); color: white; border-color: var(--error); }
+        .wrong-notebook-item { background: var(--card); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); border-left: 3px solid var(--error); margin-bottom: 12px; }
+        .wrong-notebook-meta { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .wrong-notebook-source { font-size: 11px; color: var(--text-secondary); padding: 2px 8px; background: var(--bg); border-radius: 4px; }
+        .wrong-empty { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .wrong-empty-icon { font-size: 48px; margin-bottom: 12px; }
+        .history-section { padding: 12px 0; }
+        .history-chart { background: var(--card); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+        .chart-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; }
+        .chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 80px; }
+        .chart-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+        .chart-bar { width: 100%; background: var(--primary); border-radius: 4px 4px 0 0; transition: height 0.3s ease; min-height: 4px; }
+        .chart-bar.good { background: var(--success); }
+        .chart-bar.medium { background: var(--primary); }
+        .chart-bar.bad { background: var(--error); }
+        .chart-label { font-size: 10px; color: var(--text-light); margin-top: 4px; }
+        .history-list { display: flex; flex-direction: column; gap: 10px; }
+        .history-item { background: var(--card); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); display: flex; justify-content: space-between; align-items: center; }
+        .history-info { flex: 1; }
+        .history-name { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+        .history-date { font-size: 12px; color: var(--text-light); }
+        .history-score { text-align: right; }
+        .history-rate { font-size: 18px; font-weight: 700; color: var(--primary); }
+        .history-count { font-size: 11px; color: var(--text-secondary); }
+        .history-empty { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .history-empty-icon { font-size: 48px; margin-bottom: 12px; }
+        @media (max-width: 480px) { .container { padding: 12px; } .header { padding: 16px 0 12px; } .header h1 { font-size: 18px; } .paper-card { padding: 14px; } .question-card { padding: 16px 14px; } .jump-grid { grid-template-columns: repeat(6, 1fr); } .q-text { font-size: 14px; } .option { padding: 10px; } .opt-text { font-size: 13px; } .result-stats { gap: 16px; } }
+        @media (min-width: 768px) { .container { padding: 24px; } .header h1 { font-size: 24px; } .paper-card { padding: 20px; } .paper-top { margin-bottom: 10px; } .paper-name { font-size: 16px; } .question-card { padding: 24px; } .q-text { font-size: 16px; } .option { padding: 14px; gap: 14px; } .opt-text { font-size: 15px; } .jump-grid { grid-template-columns: repeat(10, 1fr); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page active" id="pageList">
+            <div class="header">
+                <h1>📚 刷题助手</h1>
+                <p>大模型ACP认证备考</p>
+                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
+            </div>
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="showTab('tabPapers', this)">📋 套卷</button>
+                <button class="nav-tab" onclick="showTab('tabWrong', this)">📝 错题本 <span class="tab-badge" id="wrongBadge"></span></button>
+                <button class="nav-tab" onclick="showTab('tabHistory', this)">📊 记录</button>
+            </div>
+            <div class="tab-content active" id="tabPapers">
+                <div class="filter-bar">
+                    <select id="filterCategory" onchange="renderPaperList()">
+                        <option value="all">全部</option>
+                        <option value="mock">模拟题</option>
+                        <option value="topic">专项训练</option>
+                    </select>
+                    <select id="filterStatus" onchange="renderPaperList()">
+                        <option value="all">全部状态</option>
+                        <option value="not_started">未开始</option>
+                        <option value="in_progress">进行中</option>
+                        <option value="completed">已完成</option>
+                    </select>
+                </div>
+                <div class="paper-list" id="paperList"></div>
+            </div>
+            <div class="tab-content" id="tabWrong">
+                <div class="wrong-header">
+                    <span class="wrong-count" id="wrongCount">0 道错题</span>
+                </div>
+                <div class="wrong-list" id="wrongNotebook"></div>
+            </div>
+            <div class="tab-content" id="tabHistory">
+                <div class="history-section">
+                    <div class="history-chart" id="historyChart"></div>
+                </div>
+                <div class="history-list" id="historyList"></div>
+            </div>
+        </div>
+        <div class="page" id="pageQuiz">
+            <div class="quiz-header">
+                <div class="quiz-top">
+                    <div class="quiz-back" onclick="goToList()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                        <span>返回</span>
+                    </div>
+                    <div class="quiz-title" id="quizTitle"></div>
+                    <div style="width:50px"></div>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                <div class="progress-info"><span id="progressText"></span><span id="progressPercent"></span></div>
+                <div class="progress-stats">
+                    <span class="stat-correct">✓ <span id="progressCorrect">0</span></span>
+                    <span class="stat-wrong">✗ <span id="progressWrong">0</span></span>
+                    <span class="stat-pending">◯ <span id="progressPending">0</span></span>
+                </div>
+            </div>
+            <div class="nav-row">
+                <button class="nav-btn" id="prevBtn" onclick="prevQuestion()">← 上一题</button>
+                <button class="nav-btn primary" id="nextBtn" onclick="handleNext()">下一题 →</button>
+            </div>
+            <div class="question-card">
+                <div class="question-meta">
+                    <span class="q-type" id="questionType"></span>
+                    <span class="q-num" id="questionNum"></span>
+                </div>
+                <div class="q-text" id="questionText"></div>
+                <div class="options" id="options"></div>
+                <button class="confirm-btn" id="confirmBtn" style="display:none" onclick="confirmMultipleChoice()">确认答案</button>
+            </div>
+            <div class="jump-section">
+                <div class="jump-title">快速跳转</div>
+                <div class="jump-grid" id="jumpGrid"></div>
+            </div>
+        </div>
+        <div class="page" id="pageResult">
+            <div class="result-card">
+                <div class="result-title" id="resultTitle"></div>
+                <div class="score" id="scoreDisplay"></div>
+                <div class="score-rate" id="scorePercent"></div>
+                <div class="result-stats">
+                    <span class="stat-correct">✓ 正确 <span id="resultCorrect">0</span></span>
+                    <span class="stat-wrong">✗ 错误 <span id="resultWrong">0</span></span>
+                    <span class="stat-pending">◯ 未作 <span id="resultPending">0</span></span>
+                </div>
+                <div class="result-btns">
+                    <button class="result-btn primary" onclick="restartQuiz()">重新刷题</button>
+                    <button class="result-btn secondary" onclick="goToList()">返回列表</button>
+                </div>
+                <div class="result-btns" style="margin-top:10px">
+                    <button class="result-btn tertiary" onclick="showAllExplains()" id="explainBtn">查看全部解析</button>
+                </div>
+            </div>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+    <script>
+        let allQuestions = [];
+        let currentPaper = [];
+        let currentPaperName = '';
+        let currentIndex = 0;
+        let selectedOptions = [];
+        let userAnswers = {};
+
+        async function init() {
+            try {
+                const res = await fetch('questions.json');
+                if (!res.ok) throw new Error('Network response was not ok');
+                allQuestions = await res.json();
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.getElementById('themeBtn').textContent = '☀️';
+                }
+                renderPaperList();
+                renderWrongNotebook();
+                renderHistory();
+            } catch (e) {
+                console.error('Init error:', e);
+                const el = document.getElementById('paperList');
+                if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--error);">加载失败: ' + e.message + '<br><button onclick="location.reload()" style="margin-top:10px;padding:8px 16px;cursor:pointer;">刷新重试</button></div>';
+            }
+        }
+
+        function renderPaperList() {
+            const papers = {};
+            allQuestions.forEach(q => {
+                if (!papers[q.source]) papers[q.source] = { name: q.source.replace('.md', ''), questions: [], stats: { total: 0, correct: 0, wrong: 0, done: 0 } };
+                papers[q.source].questions.push(q);
+                papers[q.source].stats.total++;
+            });
+            Object.keys(papers).forEach(src => {
+                const saved = JSON.parse(localStorage.getItem('quiz_' + src) || '{}');
+                Object.keys(saved).forEach(qid => {
+                    if (saved[qid] && saved[qid].answered) {
+                        papers[src].stats.done++;
+                        if (saved[qid].correct) papers[src].stats.correct++;
+                        else papers[src].stats.wrong++;
+                    }
+                });
+            });
+            const mockPapers = {}, topicPapers = {};
+            Object.keys(papers).forEach(src => {
+                if (src.includes('模拟题')) mockPapers[src] = papers[src];
+                else topicPapers[src] = papers[src];
+            });
+            const list = document.getElementById('paperList');
+            if (!list) return;
+            const filterCat = document.getElementById('filterCategory')?.value || 'all';
+            const filterStatus = document.getElementById('filterStatus')?.value || 'all';
+            const passesFilter = (p) => {
+                const isMock = p.name.includes('模拟题'), isTopic = p.name.includes('专项训练');
+                const isCompleted = p.stats.done > 0 && p.stats.done === p.stats.total;
+                const isInProgress = p.stats.done > 0 && !isCompleted;
+                const isNotStarted = p.stats.done === 0;
+                if (filterCat === 'mock' && !isMock) return false;
+                if (filterCat === 'topic' && !isTopic) return false;
+                if (filterStatus === 'completed' && !isCompleted) return false;
+                if (filterStatus === 'in_progress' && !isInProgress) return false;
+                if (filterStatus === 'not_started' && !isNotStarted) return false;
+                return true;
+            };
+            let html = '';
+            const lastPracticedHtml = renderLastPracticed();
+            if (lastPracticedHtml) { html += '<div class="section-title">继续上次</div>' + lastPracticedHtml; }
+            const filteredMocks = Object.values(mockPapers).filter(passesFilter);
+            if (Object.keys(mockPapers).length > 0 && filteredMocks.length > 0) {
+                html += '<div class="section-title">模拟题</div>';
+                html += filteredMocks.map((p, idx) => {
+                    const s = p.questions.filter(q => q.type === 'single').length;
+                    const m = p.questions.filter(q => q.type === 'multiple').length;
+                    const isCompleted = p.stats.done > 0 && p.stats.done === p.stats.total;
+                    const isInProgress = p.stats.done > 0 && !isCompleted;
+                    let badge = 'badge-start', badgeText = '开始';
+                    if (isCompleted) { badge = 'badge-done'; badgeText = '已完成'; }
+                    else if (isInProgress) { badge = 'badge-continue'; badgeText = '继续'; }
+                    return '<div class="paper-card ' + (isCompleted ? 'completed' : '') + '" onclick="startQuiz(\'' + p.name + '\')"><div class="paper-top"><div class="paper-name">' + p.name + '</div><span class="badge ' + badge + '">' + badgeText + '</span></div><div class="paper-info"><span class="paper-stat">' + p.stats.total + '题</span><span class="paper-stat">单' + s + ' 多' + m + '</span><span class="stat-correct">✓' + p.stats.correct + '</span><span class="stat-wrong">✗' + p.stats.wrong + '</span></div></div>';
+                }).join('');
+            }
+            const filteredTopics = Object.values(topicPapers).filter(passesFilter);
+            if (Object.keys(topicPapers).length > 0 && filteredTopics.length > 0) {
+                html += '<div class="section-title" style="margin-top:24px">专项训练</div>';
+                html += filteredTopics.map((p, idx) => {
+                    const s = p.questions.filter(q => q.type === 'single').length;
+                    const m = p.questions.filter(q => q.type === 'multiple').length;
+                    const isCompleted = p.stats.done > 0 && p.stats.done === p.stats.total;
+                    const isInProgress = p.stats.done > 0 && !isCompleted;
+                    let badge = 'badge-start', badgeText = '开始';
+                    if (isCompleted) { badge = 'badge-done'; badgeText = '已完成'; }
+                    else if (isInProgress) { badge = 'badge-continue'; badgeText = '继续'; }
+                    const topicName = p.name.replace('专项训练_', '');
+                    return '<div class="paper-card ' + (isCompleted ? 'completed' : '') + '" onclick="startQuiz(\'' + p.name + '\')"><div class="paper-top"><div class="paper-name">' + topicName + '</div><span class="badge ' + badge + '">' + badgeText + '</span></div><div class="paper-info"><span class="paper-stat">' + p.stats.total + '题</span><span class="paper-stat">单' + s + ' 多' + m + '</span><span class="stat-correct">✓' + p.stats.correct + '</span><span class="stat-wrong">✗' + p.stats.wrong + '</span></div></div>';
+                }).join('');
+            }
+            if (html === '') html = '<div style="text-align:center;padding:40px;color:var(--text-secondary);">没有符合条件的套卷</div>';
+            list.innerHTML = html;
+        }
+
+        function startQuiz(paperName) {
+            currentPaperName = paperName + '.md';
+            currentPaper = allQuestions.filter(q => q.source === currentPaperName);
+            currentPaper.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+            const saved = JSON.parse(localStorage.getItem('quiz_' + currentPaperName) || '{}');
+            userAnswers = saved;
+            currentIndex = 0;
+            for (let i = 0; i < currentPaper.length; i++) {
+                if (!userAnswers[currentPaper[i].id]?.answered) { currentIndex = i; break; }
+            }
+            selectedOptions = [];
+            setLastPracticed(currentPaperName.replace('.md', ''));
+            showPage('pageQuiz');
+            document.getElementById('quizTitle').textContent = paperName;
+            renderQuestion();
+            renderJumpGrid();
+        }
+
+        function renderQuestion() {
+            if (currentPaper.length === 0) return;
+            const q = currentPaper[currentIndex];
+            const isMultiple = q.type === 'multiple';
+            const answer = userAnswers[q.id];
+            const isAnswered = answer?.answered || false;
+            document.getElementById('questionType').textContent = isMultiple ? '多选题' : '单选题';
+            document.getElementById('questionType').className = 'q-type ' + (isMultiple ? 'q-multiple' : 'q-single');
+            document.getElementById('questionNum').textContent = (currentIndex + 1) + ' / ' + currentPaper.length;
+            document.getElementById('questionText').textContent = q.question;
+            const stats = getPaperStats();
+            const progressPercent = (stats.done / currentPaper.length) * 100;
+            document.getElementById('progressFill').style.width = progressPercent + '%';
+            document.getElementById('progressText').textContent = '已答 ' + stats.done + '/' + currentPaper.length;
+            document.getElementById('progressPercent').textContent = Math.round(progressPercent) + '%';
+            document.getElementById('progressCorrect').textContent = stats.correct;
+            document.getElementById('progressWrong').textContent = stats.wrong;
+            document.getElementById('progressPending').textContent = currentPaper.length - stats.done;
+            selectedOptions = isAnswered ? [...(answer.selected || [])] : [];
+            document.getElementById('options').innerHTML = q.options.map(opt => {
+                let cls = 'option';
+                if (isAnswered) { cls += ' disabled'; if (q.answer.includes(opt.key)) cls += ' correct'; else if (selectedOptions.includes(opt.key)) cls += ' wrong'; }
+                else if (selectedOptions.includes(opt.key)) cls += ' selected';
+                return '<div class="' + cls + '" data-key="' + opt.key + '" ' + (isAnswered ? '' : 'onclick="toggleOption(\'' + opt.key + '\')"') + '><span class="opt-key">' + opt.key + '</span><span class="opt-text">' + opt.text + '</span></div>';
+            }).join('');
+            const confirmBtn = document.getElementById('confirmBtn');
+            if (isMultiple && !isAnswered) {
+                confirmBtn.style.display = 'block';
+                confirmBtn.disabled = selectedOptions.length === 0;
+                confirmBtn.textContent = selectedOptions.length === 0 ? '请先选择答案' : '确认答案 (' + selectedOptions.length + '项)';
+            } else { confirmBtn.style.display = 'none'; }
+            document.getElementById('prevBtn').disabled = currentIndex === 0;
+            const nextBtn = document.getElementById('nextBtn');
+            const allDone = stats.done === currentPaper.length;
+            if (currentIndex === currentPaper.length - 1) {
+                if (allDone) { nextBtn.textContent = '查看结果'; nextBtn.className = 'nav-btn finish'; }
+                else { nextBtn.textContent = '完成答题'; nextBtn.className = 'nav-btn primary'; }
+            } else { nextBtn.textContent = '下一题 →'; nextBtn.className = 'nav-btn primary'; }
+            renderJumpGrid();
+        }
+
+        function renderJumpGrid() {
+            const grid = document.getElementById('jumpGrid');
+            grid.innerHTML = currentPaper.map((q, idx) => {
+                let cls = 'jump-item';
+                const ans = userAnswers[q.id];
+                if (idx === currentIndex) cls += ' current';
+                else if (ans?.answered) cls += ans.correct ? ' correct' : ' wrong';
+                else cls += ' pending';
+                return '<div class="' + cls + '" onclick="jumpTo(' + idx + ')">' + q.id + '</div>';
+            }).join('');
+        }
+
+        function jumpTo(idx) { currentIndex = idx; selectedOptions = []; renderQuestion(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+        function toggleOption(key) {
+            const q = currentPaper[currentIndex];
+            if (userAnswers[q.id]?.answered) return;
+            const idx = selectedOptions.indexOf(key);
+            if (idx === -1) selectedOptions.push(key);
+            else selectedOptions.splice(idx, 1);
+            if (q.type === 'single') submitAnswer();
+            else {
+                document.querySelectorAll('.option').forEach(el => {
+                    const isSelected = selectedOptions.includes(el.dataset.key);
+                    el.classList.toggle('selected', isSelected);
+                    const keyEl = el.querySelector('.opt-key');
+                    if (isSelected) { keyEl.style.background = 'var(--primary)'; keyEl.style.color = 'white'; }
+                    else { keyEl.style.background = ''; keyEl.style.color = ''; }
+                });
+                const confirmBtn = document.getElementById('confirmBtn');
+                confirmBtn.disabled = selectedOptions.length === 0;
+                confirmBtn.textContent = selectedOptions.length === 0 ? '请先选择答案' : '确认答案 (' + selectedOptions.length + '项)';
+            }
+        }
+
+        function confirmMultipleChoice() { if (selectedOptions.length === 0) return; submitAnswer(); }
+
+        function submitAnswer() {
+            const q = currentPaper[currentIndex];
+            const correctAnswer = q.answer.split('').sort().join('');
+            const userAnswer = selectedOptions.slice().sort().join('');
+            const isCorrect = correctAnswer === userAnswer;
+            userAnswers[q.id] = { selected: [...selectedOptions], answered: true, correct: isCorrect };
+            saveProgress();
+            renderQuestion();
+            if (isCorrect && currentIndex < currentPaper.length - 1) {
+                setTimeout(() => { currentIndex++; selectedOptions = []; renderQuestion(); }, 400);
+            }
+        }
+
+        function prevQuestion() { if (currentIndex > 0) { currentIndex--; selectedOptions = []; renderQuestion(); } }
+
+        function handleNext() {
+            const stats = getPaperStats();
+            if (currentIndex === currentPaper.length - 1) {
+                if (stats.done === currentPaper.length) showResult();
+                else if (confirm('还有 ' + (currentPaper.length - stats.done) + ' 题未答，确定查看结果？')) showResult();
+            } else { currentIndex++; selectedOptions = []; renderQuestion(); }
+        }
+
+        function getPaperStats() {
+            let done = 0, correct = 0, wrong = 0;
+            Object.values(userAnswers).forEach(a => { if (a && a.answered) { done++; if (a.correct) correct++; else wrong++; } });
+            return { done, correct, wrong };
+        }
+
+        function showResult() {
+            const total = currentPaper.length;
+            const stats = getPaperStats();
+            const unanswered = total - stats.done;
+            showPage('pageResult');
+            const percent = total > 0 ? Math.round((stats.correct / total) * 100) : 0;
+            const wrongQuestions = currentPaper.filter(q => { const ans = userAnswers[q.id]; return !ans || !ans.answered || !ans.correct; });
+            saveToWrongNotebook(currentPaperName, wrongQuestions, userAnswers);
+            saveToHistory(currentPaperName, stats, total);
+            updateWrongBadge();
+            document.getElementById('resultTitle').textContent = currentPaperName.replace('.md', '') + ' - 答题结果';
+            document.getElementById('scoreDisplay').innerHTML = '<span class="correct">' + stats.correct + '</span> <span class="total">/ ' + total + '</span>';
+            document.getElementById('scorePercent').textContent = '正确率 ' + percent + '%';
+            document.getElementById('resultCorrect').textContent = stats.correct;
+            document.getElementById('resultWrong').textContent = stats.wrong;
+            document.getElementById('resultPending').textContent = unanswered;
+            let html = '';
+            if (unanswered > 0) html += '<div class="has-unanswered">⚠️ ' + unanswered + ' 道题未作答，已归为错题</div>';
+            if (wrongQuestions.length === 0) html += '<div class="all-correct">🎉 全部答对！</div>';
+            else html += '<div class="wrong-section"><div class="wrong-title">错题回顾 (' + wrongQuestions.length + '道)</div><div class="wrong-list" id="wrongList"></div></div>';
+            document.getElementById('resultContent').innerHTML = html;
+            if (wrongQuestions.length > 0) {
+                const list = document.getElementById('wrongList');
+                wrongQuestions.forEach(q => {
+                    const ans = userAnswers[q.id];
+                    const isUnanswered = !ans || !ans.answered;
+                    const seqNum = currentPaper.findIndex(x => x.id === q.id) + 1;
+                    let ansHtml = isUnanswered ? '<div class="wrong-answer"><span class="label">◯</span> 未作答</div>' : '<div class="wrong-answer"><span class="label">✗</span> 你的答案: ' + ans.selected.join(', ') + '</div><div class="wrong-correct"><span class="label">✓</span> 正确答案: ' + q.answer + '</div>';
+                    let expHtml = q.answer_text ? '<div class="wrong-explain">📖 ' + q.answer_text + '</div>' : '';
+                    list.innerHTML += '<div class="wrong-item"><div class="wrong-num">第 ' + seqNum + ' 题 · ' + (q.type === 'multiple' ? '多选' : '单选') + '</div><div class="wrong-text">' + q.question + '</div>' + ansHtml + expHtml + '</div>';
+                });
+            }
+        }
+
+        function restartQuiz() { localStorage.removeItem('quiz_' + currentPaperName); userAnswers = {}; currentIndex = 0; selectedOptions = []; showPage('pageQuiz'); renderQuestion(); }
+
+        function goToList() { showPage('pageList'); renderPaperList(); showTab('tabPapers'); }
+
+        function showAllExplains() {
+            const content = document.getElementById('resultContent');
+            const btn = document.getElementById('explainBtn');
+            if (btn.textContent === '查看全部解析') {
+                let html = '<div class="explain-section" style="margin-top:20px"><div class="wrong-title">全部题目解析</div><div class="wrong-list" id="explainList"></div></div>';
+                const wrongSection = document.querySelector('.wrong-section');
+                if (wrongSection) wrongSection.style.display = 'none';
+                const allCorrect = document.querySelector('.all-correct');
+                if (allCorrect) allCorrect.style.display = 'none';
+                const unanswered = document.querySelector('.has-unanswered');
+                if (unanswered) unanswered.style.display = 'none';
+                content.innerHTML = html;
+                const list = document.getElementById('explainList');
+                currentPaper.forEach((q, idx) => {
+                    const ans = userAnswers[q.id];
+                    const isCorrect = ans && ans.correct;
+                    const isUnanswered = !ans || !ans.answered;
+                    let statusIcon = isCorrect ? '✓' : (isUnanswered ? '◯' : '✗');
+                    let statusClass = isCorrect ? 'correct' : (isUnanswered ? 'pending' : 'wrong');
+                    let userAnsText = isUnanswered ? '未作答' : (ans.selected ? ans.selected.join(', ') : '-');
+                    let expHtml = q.answer_text ? '<div class="wrong-explain">📖 ' + q.answer_text + '</div>' : '<div class="wrong-explain" style="color:var(--text-light)">暂无解析</div>';
+                    const colorVar = statusClass === 'correct' ? 'success' : (statusClass === 'pending' ? 'text-light' : 'error');
+                    list.innerHTML += '<div class="wrong-item" style="border-left-color:var(' + colorVar + ')"><div class="wrong-num"><span class="status-badge ' + statusClass + '">' + statusIcon + '</span>第 ' + (idx + 1) + ' 题 · ' + (q.type === 'multiple' ? '多选' : '单选') + '</div><div class="wrong-text">' + q.question + '</div><div class="wrong-answer"><span class="label">你的答案:</span> ' + userAnsText + '</div><div class="wrong-correct"><span class="label">正确答案:</span> ' + q.answer + '</div>' + expHtml + '</div>';
+                });
+                btn.textContent = '返回结果';
+            } else { showResult(); btn.textContent = '查看全部解析'; }
+        }
+
+        function showPage(pageId) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById(pageId).classList.add('active'); window.scrollTo(0, 0); }
+        function saveProgress() { localStorage.setItem('quiz_' + currentPaperName, JSON.stringify(userAnswers)); }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) { document.documentElement.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); document.getElementById('themeBtn').textContent = '🌙'; }
+            else { document.documentElement.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); document.getElementById('themeBtn').textContent = '☀️'; }
+        }
+
+        function showTab(tabId, btn) {
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            else document.querySelector('.nav-tab[onclick*="' + tabId + '"]').classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            if (tabId === 'tabWrong') renderWrongNotebook();
+            if (tabId === 'tabHistory') renderHistory();
+        }
+
+        function saveToWrongNotebook(paperName, wrongQuestions, answers) {
+            if (wrongQuestions.length === 0) return;
+            let notebook = JSON.parse(localStorage.getItem('wrong_notebook') || '{}');
+            const paperQuestions = allQuestions.filter(q => q.source === paperName);
+            wrongQuestions.forEach(q => {
+                const seqNum = paperQuestions.findIndex(x => x.id === q.id) + 1;
+                const ans = answers[q.id];
+                const isUnanswered = !ans || !ans.answered;
+                const key = paperName + '_' + q.id;
+                if (!notebook[key]) {
+                    notebook[key] = { paperName: paperName.replace('.md', ''), source: paperName, questionId: q.id, seqNum: seqNum, question: q.question, options: q.options, answer: q.answer, answer_text: q.answer_text || '', type: q.type, userAnswer: isUnanswered ? null : ans.selected, addedAt: Date.now() };
+                }
+            });
+            localStorage.setItem('wrong_notebook', JSON.stringify(notebook));
+        }
+
+        function getWrongNotebook() { return JSON.parse(localStorage.getItem('wrong_notebook') || '{}'); }
+
+        function renderWrongNotebook() {
+            const notebook = getWrongNotebook();
+            const questions = Object.values(notebook);
+            const container = document.getElementById('wrongNotebook');
+            const countEl = document.getElementById('wrongCount');
+            if (!container) return;
+            if (countEl) countEl.textContent = questions.length + ' 道错题';
+            updateWrongBadge();
+            if (questions.length === 0) {
+                container.innerHTML = '<div class="wrong-empty"><div class="wrong-empty-icon">🎉</div><div>太棒了！错题本为空</div><div style="font-size:12px;margin-top:8px;color:var(--text-light)">继续保持，继续刷题吧！</div></div>';
+            } else {
+                questions.sort((a, b) => b.addedAt - a.addedAt);
+                const grouped = {};
+                questions.forEach(q => { if (!grouped[q.source]) grouped[q.source] = []; grouped[q.source].push(q); });
+                let html = '';
+                Object.keys(grouped).forEach(source => {
+                    const items = grouped[source];
+                    html += '<div class="section-title">' + source.replace('.md', '') + ' (' + items.length + ')</div>';
+                    items.forEach(q => {
+                        const isUnanswered = !q.userAnswer;
+                        let ansHtml = isUnanswered ? '<div class="wrong-answer"><span class="label">◯</span> 未作答</div>' : '<div class="wrong-answer"><span class="label">✗</span> 你的答案: ' + q.userAnswer.join(', ') + '</div><div class="wrong-correct"><span class="label">✓</span> 正确答案: ' + q.answer + '</div>';
+                        let expHtml = q.answer_text ? '<div class="wrong-explain">📖 ' + q.answer_text + '</div>' : '';
+                        html += '<div class="wrong-notebook-item"><div class="wrong-notebook-meta"><span class="wrong-notebook-source">第 ' + q.seqNum + ' 题</span><span class="q-type ' + (q.type === 'multiple' ? 'q-multiple' : 'q-single') + '">' + (q.type === 'multiple' ? '多选' : '单选') + '</span></div><div class="wrong-text">' + q.question + '</div>' + ansHtml + expHtml + '</div>';
+                    });
+                });
+                container.innerHTML = html;
+            }
+        }
+
+        function updateWrongBadge() {
+            const notebook = getWrongNotebook();
+            const count = Object.keys(notebook).length;
+            const badge = document.getElementById('wrongBadge');
+            if (badge) { if (count > 0) { badge.textContent = count; badge.style.display = 'inline'; } else { badge.textContent = ''; badge.style.display = 'none'; } }
+        }
+
+        function saveToHistory(paperName, stats, total) {
+            let history = JSON.parse(localStorage.getItem('quiz_history') || '[]');
+            history.push({ paperName: paperName.replace('.md', ''), source: paperName, correct: stats.correct, wrong: stats.wrong, pending: stats.done < total ? total - stats.done : 0, total: total, rate: total > 0 ? Math.round((stats.correct / total) * 100) : 0, timestamp: Date.now() });
+            if (history.length > 50) history = history.slice(-50);
+            localStorage.setItem('quiz_history', JSON.stringify(history));
+        }
+
+        function renderHistory() {
+            const history = JSON.parse(localStorage.getItem('quiz_history') || '[]');
+            const chartEl = document.getElementById('historyChart');
+            const listEl = document.getElementById('historyList');
+            if (!chartEl || !listEl) return;
+            if (history.length === 0) {
+                chartEl.innerHTML = '';
+                listEl.innerHTML = '<div class="history-empty"><div class="history-empty-icon">📊</div><div>暂无刷题记录</div><div style="font-size:12px;margin-top:8px;color:var(--text-light)">开始刷题，查看你的进步曲线！</div></div>';
+            } else {
+                const recent = history.slice(-10);
+                let chartHtml = '<div class="chart-title">最近10次正确率</div><div class="chart-bars">';
+                recent.forEach(h => { const height = h.rate; const barClass = h.rate >= 80 ? 'good' : (h.rate >= 60 ? 'medium' : 'bad'); chartHtml += '<div class="chart-bar-wrapper"><div class="chart-bar ' + barClass + '" style="height:' + height + '%"></div><div class="chart-label">' + h.rate + '%</div></div>'; });
+                chartHtml += '</div>';
+                chartEl.innerHTML = chartHtml;
+                const sorted = [...history].reverse();
+                let listHtml = '<div class="section-title">刷题记录</div>';
+                sorted.forEach(h => {
+                    const date = new Date(h.timestamp);
+                    const dateStr = date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const barClass = h.rate >= 80 ? 'good' : (h.rate >= 60 ? 'medium' : 'bad');
+                    const colorVar = barClass === 'good' ? 'success' : (barClass === 'medium' ? 'primary' : 'error');
+                    listHtml += '<div class="history-item"><div class="history-info"><div class="history-name">' + h.paperName + '</div><div class="history-date">' + dateStr + '</div></div><div class="history-score"><div class="history-rate" style="color:var(--' + colorVar + ')">' + h.rate + '%</div><div class="history-count">' + h.correct + '/' + h.total + ' 正确</div></div></div>';
+                });
+                listEl.innerHTML = listHtml;
+            }
+        }
+
+        function getLastPracticed() { return localStorage.getItem('last_practiced') || null; }
+        function setLastPracticed(paperName) { localStorage.setItem('last_practiced', paperName); }
+
+        function renderLastPracticed() {
+            const lastPracticed = getLastPracticed();
+            if (!lastPracticed) return '';
+            const paperExists = allQuestions.some(q => q.source === lastPracticed + '.md');
+            if (!paperExists) return '';
+            const saved = JSON.parse(localStorage.getItem('quiz_' + lastPracticed + '.md') || '{}');
+            const total = allQuestions.filter(q => q.source === lastPracticed + '.md').length;
+            let done = 0, correct = 0;
+            Object.values(saved).forEach(a => { if (a && a.answered) { done++; if (a.correct) correct++; } });
+            const isCompleted = done > 0 && done === total;
+            const isInProgress = done > 0 && !isCompleted;
+            const paperDisplayName = lastPracticed.replace('专项训练_', '');
+            const badge = isCompleted ? 'badge-done' : (isInProgress ? 'badge-continue' : 'badge-start');
+            const badgeText = isCompleted ? '已完成' : (isInProgress ? '继续' : '开始');
+            const progressText = done > 0 ? done + '/' + total : '';
+            return '<div class="paper-card last-practiced" onclick="startQuiz(\'' + lastPracticed + '\')"><div class="paper-top"><div class="paper-name"><span style="opacity:0.6">📌</span> ' + paperDisplayName + '</div><span class="badge ' + badge + '">' + badgeText + '</span></div><div class="paper-info"><span class="paper-stat">' + (progressText || total + '题') + '</span>' + (done > 0 ? '<span class="stat-correct">✓' + correct + '</span><span class="stat-wrong">✗' + (done - correct) + '</span>' : '') + '</div></div>';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            const page = document.querySelector('.page.active')?.id;
+            if (page !== 'pageQuiz') return;
+            const q = currentPaper[currentIndex];
+            if (!q) return;
+            if (e.key === 'ArrowLeft') prevQuestion();
+            else if (e.key === 'ArrowRight') handleNext();
+            else if (e.key >= 'A' && e.key <= 'E' && !userAnswers[q.id]?.answered) toggleOption(e.key);
+            else if (e.key === 'Enter' && q.type === 'multiple' && selectedOptions.length > 0 && !userAnswers[q.id]?.answered) confirmMultipleChoice();
+        });
+
+        init();
+    </script>
+</body>
+</html>
