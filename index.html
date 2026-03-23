@@ -142,7 +142,15 @@
         .wrong-list { display: flex; flex-direction: column; gap: 12px; }
         .wrong-item { background: var(--card); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); border-left: 3px solid var(--error); }
         .wrong-num { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
-        .wrong-text { font-size: 13px; margin-bottom: 10px; line-height: 1.6; }
+                .wrong-text { font-size: 13px; margin-bottom: 10px; line-height: 1.6; }
+        .wrong-options { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; padding: 10px; background: var(--bg); border-radius: 8px; }
+        .wrong-opt-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 12px; line-height: 1.5; }
+        .wrong-opt-item.correct { background: #dcfce7; border: 1px solid #86efac; }
+        .wrong-opt-item.wrong { background: #fee2e2; border: 1px solid #fca5a5; }
+        .wrong-opt-key { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--card); font-weight: 600; font-size: 11px; flex-shrink: 0; }
+        .wrong-opt-item.correct .wrong-opt-key { background: var(--success); color: white; }
+        .wrong-opt-item.wrong .wrong-opt-key { background: var(--error); color: white; }
+        .wrong-opt-text { flex: 1; }
         .wrong-answer { font-size: 12px; padding: 8px 10px; background: #fef2f2; border-radius: 6px; margin-bottom: 6px; }
         .wrong-answer .label { color: var(--error); font-weight: 600; }
         .wrong-correct { font-size: 12px; padding: 8px 10px; background: #f0fdf4; border-radius: 6px; margin-bottom: 8px; }
@@ -296,9 +304,39 @@
 
         async function init() {
             try {
-                const res = await fetch('questions.json');
-                if (!res.ok) throw new Error('Network response was not ok');
-                allQuestions = await res.json();
+                let data = null;
+                // 尝试 fetch
+                try {
+                    const res = await fetch('questions.json');
+                    if (res.ok) {
+                        data = await res.json();
+                    }
+                } catch (fetchErr) {
+                    console.warn('Fetch failed, trying XHR...', fetchErr);
+                }
+                // 如果 fetch 失败，尝试 XHR
+                if (!data) {
+                    data = await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', 'questions.json', true);
+                        xhr.onreadystatechange = () => {
+                            if (xhr.readyState === 4) {
+                                if (xhr.status === 200 || xhr.status === 0) {
+                                    try {
+                                        resolve(JSON.parse(xhr.responseText));
+                                    } catch (e) {
+                                        reject(e);
+                                    }
+                                } else {
+                                    reject(new Error('XHR failed: ' + xhr.status));
+                                }
+                            }
+                        };
+                        xhr.onerror = reject;
+                        xhr.send();
+                    });
+                }
+                allQuestions = data;
                 const savedTheme = localStorage.getItem('theme');
                 if (savedTheme === 'dark') {
                     document.documentElement.setAttribute('data-theme', 'dark');
@@ -310,7 +348,7 @@
             } catch (e) {
                 console.error('Init error:', e);
                 const el = document.getElementById('paperList');
-                if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--error);">加载失败: ' + e.message + '<br><button onclick="location.reload()" style="margin-top:10px;padding:8px 16px;cursor:pointer;">刷新重试</button></div>';
+                if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--error);">' + '<h3>数据加载失败</h3>' + '<p>错误信息: ' + e.message + '</p>' + '<p style="margin-top:16px;font-size:13px;color:var(--text-secondary);">如果您是直接双击打开 HTML 文件，请使用 HTTP 服务器访问：<br>' + '<code style="background:#f0f0f0;padding:2px 6px;border-radius:4px;">python3 -m http.server 8080</code><br>' + '然后访问 <code>http://localhost:8080</code></p>' + '<button onclick="location.reload()" style="margin-top:16px;padding:8px 16px;cursor:pointer;border:none;border-radius:6px;background:var(--primary);color:white;">刷新重试</button>' + '</div>';
             }
         }
 
@@ -388,12 +426,23 @@
             list.innerHTML = html;
         }
 
-        function startQuiz(paperName) {
+                function startQuiz(paperName) {
             currentPaperName = paperName + '.md';
             currentPaper = allQuestions.filter(q => q.source === currentPaperName);
             currentPaper.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+            // 读取并清理答题记录，确保每题只有一个记录
             const saved = JSON.parse(localStorage.getItem('quiz_' + currentPaperName) || '{}');
-            userAnswers = saved;
+            // 清理重复记录，只保留每个题目的最新记录
+            const cleanedAnswers = {};
+            Object.keys(saved).forEach(qid => {
+                if (saved[qid] && saved[qid].answered) {
+                    // 如果已有记录，保留最新的（通过answered时间判断，但这里简单处理）
+                    if (!cleanedAnswers[qid]) {
+                        cleanedAnswers[qid] = saved[qid];
+                    }
+                }
+            });
+            userAnswers = cleanedAnswers;
             currentIndex = 0;
             for (let i = 0; i < currentPaper.length; i++) {
                 if (!userAnswers[currentPaper[i].id]?.answered) { currentIndex = i; break; }
@@ -455,7 +504,9 @@
                 if (idx === currentIndex) cls += ' current';
                 else if (ans?.answered) cls += ans.correct ? ' correct' : ' wrong';
                 else cls += ' pending';
-                return '<div class="' + cls + '" onclick="jumpTo(' + idx + ')">' + q.id + '</div>';
+                // 使用内部序号 (serial_no 或 idx+1)
+                const serialNum = q.serial_no || (idx + 1);
+                return '<div class="' + cls + '" onclick="jumpTo(' + idx + ')">' + serialNum + '</div>';
             }).join('');
         }
 
@@ -519,7 +570,8 @@
             const unanswered = total - stats.done;
             showPage('pageResult');
             const percent = total > 0 ? Math.round((stats.correct / total) * 100) : 0;
-            const wrongQuestions = currentPaper.filter(q => { const ans = userAnswers[q.id]; return !ans || !ans.answered || !ans.correct; });
+            // 只包含答错的题目（排除未作答）
+            const wrongQuestions = currentPaper.filter(q => { const ans = userAnswers[q.id]; return ans && ans.answered && !ans.correct; });
             saveToWrongNotebook(currentPaperName, wrongQuestions, userAnswers);
             saveToHistory(currentPaperName, stats, total);
             updateWrongBadge();
@@ -530,26 +582,35 @@
             document.getElementById('resultWrong').textContent = stats.wrong;
             document.getElementById('resultPending').textContent = unanswered;
             let html = '';
-            if (unanswered > 0) html += '<div class="has-unanswered">⚠️ ' + unanswered + ' 道题未作答，已归为错题</div>';
+            if (unanswered > 0) html += '<div class="has-unanswered">⚠️ ' + unanswered + ' 道题未作答（不计入错题本）</div>';
             if (wrongQuestions.length === 0) html += '<div class="all-correct">🎉 全部答对！</div>';
             else html += '<div class="wrong-section"><div class="wrong-title">错题回顾 (' + wrongQuestions.length + '道)</div><div class="wrong-list" id="wrongList"></div></div>';
             document.getElementById('resultContent').innerHTML = html;
-            if (wrongQuestions.length > 0) {
+                        if (wrongQuestions.length > 0) {
                 const list = document.getElementById('wrongList');
                 wrongQuestions.forEach(q => {
                     const ans = userAnswers[q.id];
                     const isUnanswered = !ans || !ans.answered;
                     const seqNum = currentPaper.findIndex(x => x.id === q.id) + 1;
-                    let ansHtml = isUnanswered ? '<div class="wrong-answer"><span class="label">◯</span> 未作答</div>' : '<div class="wrong-answer"><span class="label">✗</span> 你的答案: ' + ans.selected.join(', ') + '</div><div class="wrong-correct"><span class="label">✓</span> 正确答案: ' + q.answer + '</div>';
+                    // 生成选项HTML
+                    const optionsHtml = q.options.map(opt => {
+                        const isSelected = ans && ans.selected && ans.selected.includes(opt.key);
+                        const isCorrectOpt = q.answer.includes(opt.key);
+                        let cls = 'wrong-opt-item';
+                        if (isCorrectOpt) cls += ' correct';
+                        else if (isSelected) cls += ' wrong';
+                        return '<div class="' + cls + '"><span class="wrong-opt-key">' + opt.key + '</span><span class="wrong-opt-text">' + opt.text + '</span></div>';
+                    }).join('');
+                    let ansHtml = isUnanswered ? '<div class="wrong-answer"><span class="label">◯</span> 未作答</div>' : '<div class="wrong-answer"><span class="label">✗</span> 你的答案: ' + (ans.selected || []).join(', ') + '</div><div class="wrong-correct"><span class="label">✓</span> 正确答案: ' + q.answer + '</div>';
                     let expHtml = q.answer_text ? '<div class="wrong-explain">📖 ' + q.answer_text + '</div>' : '';
-                    list.innerHTML += '<div class="wrong-item"><div class="wrong-num">第 ' + seqNum + ' 题 · ' + (q.type === 'multiple' ? '多选' : '单选') + '</div><div class="wrong-text">' + q.question + '</div>' + ansHtml + expHtml + '</div>';
+                    list.innerHTML += '<div class="wrong-item"><div class="wrong-num">第 ' + seqNum + ' 题 · ' + (q.type === 'multiple' ? '多选' : '单选') + '</div><div class="wrong-text">' + q.question + '</div><div class="wrong-options">' + optionsHtml + '</div>' + ansHtml + expHtml + '</div>';
                 });
             }
         }
 
         function restartQuiz() { localStorage.removeItem('quiz_' + currentPaperName); userAnswers = {}; currentIndex = 0; selectedOptions = []; showPage('pageQuiz'); renderQuestion(); }
 
-        function goToList() { showPage('pageList'); renderPaperList(); showTab('tabPapers'); }
+                function goToList() { if (currentPaperName && currentPaper.length > 0) saveProgress(); showPage('pageList'); renderPaperList(); showTab('tabPapers'); }
 
         function showAllExplains() {
             const content = document.getElementById('resultContent');
@@ -563,7 +624,7 @@
                 const unanswered = document.querySelector('.has-unanswered');
                 if (unanswered) unanswered.style.display = 'none';
                 content.innerHTML = html;
-                const list = document.getElementById('explainList');
+                                const list = document.getElementById('explainList');
                 currentPaper.forEach((q, idx) => {
                     const ans = userAnswers[q.id];
                     const isCorrect = ans && ans.correct;
@@ -571,9 +632,18 @@
                     let statusIcon = isCorrect ? '✓' : (isUnanswered ? '◯' : '✗');
                     let statusClass = isCorrect ? 'correct' : (isUnanswered ? 'pending' : 'wrong');
                     let userAnsText = isUnanswered ? '未作答' : (ans.selected ? ans.selected.join(', ') : '-');
+                    // 生成选项HTML
+                    const optionsHtml = q.options.map(opt => {
+                        const isSelected = ans && ans.selected && ans.selected.includes(opt.key);
+                        const isCorrectOpt = q.answer.includes(opt.key);
+                        let cls = 'wrong-opt-item';
+                        if (isCorrectOpt) cls += ' correct';
+                        else if (isSelected) cls += ' wrong';
+                        return '<div class="' + cls + '"><span class="wrong-opt-key">' + opt.key + '</span><span class="wrong-opt-text">' + opt.text + '</span></div>';
+                    }).join('');
                     let expHtml = q.answer_text ? '<div class="wrong-explain">📖 ' + q.answer_text + '</div>' : '<div class="wrong-explain" style="color:var(--text-light)">暂无解析</div>';
                     const colorVar = statusClass === 'correct' ? 'success' : (statusClass === 'pending' ? 'text-light' : 'error');
-                    list.innerHTML += '<div class="wrong-item" style="border-left-color:var(' + colorVar + ')"><div class="wrong-num"><span class="status-badge ' + statusClass + '">' + statusIcon + '</span>第 ' + (idx + 1) + ' 题 · ' + (q.type === 'multiple' ? '多选' : '单选') + '</div><div class="wrong-text">' + q.question + '</div><div class="wrong-answer"><span class="label">你的答案:</span> ' + userAnsText + '</div><div class="wrong-correct"><span class="label">正确答案:</span> ' + q.answer + '</div>' + expHtml + '</div>';
+                    list.innerHTML += '<div class="wrong-item" style="border-left-color:var(' + colorVar + ')"><div class="wrong-num"><span class="status-badge ' + statusClass + '">' + statusIcon + '</span>第 ' + (idx + 1) + ' 题 · ' + (q.type === 'multiple' ? '多选' : '单选') + '</div><div class="wrong-text">' + q.question + '</div><div class="wrong-options">' + optionsHtml + '</div><div class="wrong-answer"><span class="label">你的答案:</span> ' + userAnsText + '</div><div class="wrong-correct"><span class="label">正确答案:</span> ' + q.answer + '</div>' + expHtml + '</div>'; 
                 });
                 btn.textContent = '返回结果';
             } else { showResult(); btn.textContent = '查看全部解析'; }
@@ -603,16 +673,19 @@
             let notebook = JSON.parse(localStorage.getItem('wrong_notebook') || '{}');
             const paperQuestions = allQuestions.filter(q => q.source === paperName);
             wrongQuestions.forEach(q => {
-                const seqNum = paperQuestions.findIndex(x => x.id === q.id) + 1;
                 const ans = answers[q.id];
+                // 只保存答错的题目，跳过未作答的题目
                 const isUnanswered = !ans || !ans.answered;
+                if (isUnanswered) return; // 跳过未作答的题目
+                const seqNum = paperQuestions.findIndex(x => x.id === q.id) + 1;
                 const key = paperName + '_' + q.id;
                 if (!notebook[key]) {
-                    notebook[key] = { paperName: paperName.replace('.md', ''), source: paperName, questionId: q.id, seqNum: seqNum, question: q.question, options: q.options, answer: q.answer, answer_text: q.answer_text || '', type: q.type, userAnswer: isUnanswered ? null : ans.selected, addedAt: Date.now() };
+                    notebook[key] = { paperName: paperName.replace('.md', ''), source: paperName, questionId: q.id, seqNum: seqNum, question: q.question, options: q.options, answer: q.answer, answer_text: q.answer_text || '', type: q.type, userAnswer: ans.selected, addedAt: Date.now() };
                 }
             });
             localStorage.setItem('wrong_notebook', JSON.stringify(notebook));
         }
+
 
         function getWrongNotebook() { return JSON.parse(localStorage.getItem('wrong_notebook') || '{}'); }
 
@@ -635,10 +708,18 @@
                     const items = grouped[source];
                     html += '<div class="section-title">' + source.replace('.md', '') + ' (' + items.length + ')</div>';
                     items.forEach(q => {
-                        const isUnanswered = !q.userAnswer;
-                        let ansHtml = isUnanswered ? '<div class="wrong-answer"><span class="label">◯</span> 未作答</div>' : '<div class="wrong-answer"><span class="label">✗</span> 你的答案: ' + q.userAnswer.join(', ') + '</div><div class="wrong-correct"><span class="label">✓</span> 正确答案: ' + q.answer + '</div>';
+                        // 生成选项HTML，与答题结果页面一致
+                        const optionsHtml = q.options ? q.options.map(opt => {
+                            const isSelected = q.userAnswer && q.userAnswer.includes(opt.key);
+                            const isCorrectOpt = q.answer.includes(opt.key);
+                            let cls = 'wrong-opt-item';
+                            if (isCorrectOpt) cls += ' correct';
+                            else if (isSelected) cls += ' wrong';
+                            return '<div class="' + cls + '"><span class="wrong-opt-key">' + opt.key + '</span><span class="wrong-opt-text">' + opt.text + '</span></div>';
+                        }).join('') : '';
+                        let ansHtml = '<div class="wrong-answer"><span class="label">✗</span> 你的答案: ' + (q.userAnswer ? q.userAnswer.join(', ') : '-') + '</div><div class="wrong-correct"><span class="label">✓</span> 正确答案: ' + q.answer + '</div>';
                         let expHtml = q.answer_text ? '<div class="wrong-explain">📖 ' + q.answer_text + '</div>' : '';
-                        html += '<div class="wrong-notebook-item"><div class="wrong-notebook-meta"><span class="wrong-notebook-source">第 ' + q.seqNum + ' 题</span><span class="q-type ' + (q.type === 'multiple' ? 'q-multiple' : 'q-single') + '">' + (q.type === 'multiple' ? '多选' : '单选') + '</span></div><div class="wrong-text">' + q.question + '</div>' + ansHtml + expHtml + '</div>';
+                        html += '<div class="wrong-notebook-item"><div class="wrong-notebook-meta"><span class="wrong-notebook-source">第 ' + q.seqNum + ' 题</span><span class="q-type ' + (q.type === 'multiple' ? 'q-multiple' : 'q-single') + '">' + (q.type === 'multiple' ? '多选' : '单选') + '</span></div><div class="wrong-text">' + q.question + '</div><div class="wrong-options">' + optionsHtml + '</div>' + ansHtml + expHtml + '</div>';
                     });
                 });
                 container.innerHTML = html;
