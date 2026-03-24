@@ -162,7 +162,12 @@
         .status-badge.pending { background: var(--border); color: var(--text-light); }
         .all-correct { background: #f0fdf4; padding: 20px; border-radius: 12px; text-align: center; color: var(--success); font-size: 14px; font-weight: 500; }
         .has-unanswered { background: #fef3c7; padding: 12px; border-radius: 8px; text-align: center; color: #92400e; font-size: 13px; margin-bottom: 12px; }
-        .wrong-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
+        .wrong-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; flex-wrap: wrap; gap: 8px; }
+.export-btns { display: flex; gap: 8px; }
+.export-btn { padding: 6px 12px; border: 1px solid var(--border); background: var(--card); font-size: 12px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; transition: all 0.15s; }
+.export-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+.export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.export-btn:disabled:hover { background: var(--card); color: var(--text-secondary); border-color: var(--border); }
         .wrong-count { font-size: 14px; font-weight: 600; color: var(--text); }
         .btn-small { padding: 6px 12px; border: 1px solid var(--border); background: var(--card); font-size: 12px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); }
         .btn-small:hover { background: var(--error); color: white; border-color: var(--error); }
@@ -225,6 +230,15 @@
                 <div class="paper-list" id="paperList"></div>
             </div>
             <div class="tab-content" id="tabWrong">
+                <div class="wrong-header">
+                    <span class="wrong-count" id="wrongCount">0 道错题</span>
+                    <div class="export-btns">
+                        <button class="export-btn" id="exportJsonBtn" onclick="exportWrongNotebookJSON()" disabled>📥 JSON</button>
+                        <button class="export-btn" id="exportHtmlBtn" onclick="exportWrongNotebookHTML()" disabled>📥 HTML</button>
+                    </div>
+                </div>
+                <div class="wrong-list" id="wrongNotebook"></div>
+            </div>
                 <div class="wrong-header">
                     <span class="wrong-count" id="wrongCount">0 道错题</span>
                 </div>
@@ -731,7 +745,98 @@
             const count = Object.keys(notebook).length;
             const badge = document.getElementById('wrongBadge');
             if (badge) { if (count > 0) { badge.textContent = count; badge.style.display = 'inline'; } else { badge.textContent = ''; badge.style.display = 'none'; } }
+            const jsonBtn = document.getElementById('exportJsonBtn');
+            const htmlBtn = document.getElementById('exportHtmlBtn');
+            if (jsonBtn) jsonBtn.disabled = count === 0;
+            if (htmlBtn) htmlBtn.disabled = count === 0;
         }
+
+        function exportWrongNotebookJSON() {
+            const notebook = getWrongNotebook();
+            const questions = Object.values(notebook);
+            if (questions.length === 0) { alert('错题本为空'); return; }
+            const exportData = {
+                exportedAt: new Date().toLocaleString('zh-CN'),
+                totalCount: questions.length,
+                questions: questions.map(q => ({
+                    source: q.source,
+                    seqNum: q.seqNum,
+                    type: q.type === 'multiple' ? '多选题' : '单选题',
+                    question: q.question,
+                    options: q.options,
+                    userAnswer: q.userAnswer,
+                    answer: q.answer,
+                    answer_text: q.answer_text
+                }))
+            };
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
+            downloadBlob(blob, '错题本_' + formatDate(new Date()) + '.json');
+        }
+
+        function exportWrongNotebookHTML() {
+            const notebook = getWrongNotebook();
+            const questions = Object.values(notebook);
+            if (questions.length === 0) { alert('错题本为空'); return; }
+            const exportData = {
+                exportedAt: new Date().toLocaleString('zh-CN'),
+                totalCount: questions.length,
+                questions: questions.map(q => ({
+                    source: q.source,
+                    seqNum: q.seqNum,
+                    type: q.type === 'multiple' ? '多选题' : '单选题',
+                    question: q.question,
+                    options: q.options,
+                    userAnswer: q.userAnswer,
+                    answer: q.answer,
+                    answer_text: q.answer_text
+                }))
+            };
+            const html = generateWrongNotebookHTML(exportData);
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            downloadBlob(blob, '错题本_' + formatDate(new Date()) + '.html');
+        }
+
+        function generateWrongNotebookHTML(data) {
+            let rows = '';
+            data.questions.forEach((q, idx) => {
+                const optionsHtml = q.options.map(opt => {
+                    const isSelected = q.userAnswer && q.userAnswer.includes(opt.key);
+                    const isCorrectOpt = q.answer.includes(opt.key);
+                    let bg = '#f8f9fa';
+                    if (isCorrectOpt) bg = '#d4edda';
+                    else if (isSelected) bg = '#f8d7da';
+                    const mark = isCorrectOpt ? '✓' : (isSelected ? '✗' : '');
+                    return '<tr style="background:' + bg + ';"><td style="padding:6px 10px;font-weight:bold;width:28px;">' + opt.key + mark + '</td><td style="padding:6px 10px;">' + opt.text + '</td></tr>';
+                }).join('');
+                rows += '<div style="background:#fff;border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:3px solid #ef4444;">' +
+                    '<div style="font-size:12px;color:#666;margin-bottom:8px;">' + q.source.replace(".md","") + ' · 第 ' + q.seqNum + ' 题 · ' + q.type + '</div>' +
+                    '<div style="font-size:15px;margin-bottom:12px;line-height:1.7;">' + (idx + 1) + '. ' + q.question + '</div>' +
+                    '<table style="width:100%;border-collapse:collapse;border-radius:6px;overflow:hidden;font-size:13px;margin-bottom:10px;">' + optionsHtml + '</table>' +
+                    '<div style="padding:8px 10px;background:#fff5f5;border-radius:6px;font-size:12px;margin-bottom:6px;color:#dc3545;">✗ 你的答案: ' + (q.userAnswer ? q.userAnswer.join(', ') : '-') + '</div>' +
+                    '<div style="padding:8px 10px;background:#f0fdf4;border-radius:6px;font-size:12px;margin-bottom:8px;color:#28a745;">✓ 正确答案: ' + q.answer + '</div>' +
+                    (q.answer_text ? '<div style="padding:10px;background:#fffbeb;border-radius:6px;font-size:12px;color:#92400e;line-height:1.6;">📖 ' + q.answer_text + '</div>' : '') +
+                    '</div>';
+            });
+            return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>错题本</title>' +
+                '<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f7fa;color:#1a1a1a;padding:20px;max-width:640px;margin:0 auto;line-height:1.6;}h1{font-size:20px;text-align:center;margin-bottom:8px;}.meta{font-size:12px;color:#666;text-align:center;margin-bottom:20px;}</style>' +
+                '</head><body><h1>📝 错题本</h1><div class="meta">共 ' + data.totalCount + ' 道错题 · 导出时间: ' + data.exportedAt + '</div>' + rows + '</body></html>';
+        }
+
+        function formatDate(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
 
         function saveToHistory(paperName, stats, total) {
             let history = JSON.parse(localStorage.getItem('quiz_history') || '[]');
