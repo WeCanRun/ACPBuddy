@@ -316,6 +316,21 @@
         let selectedOptions = [];
         let userAnswers = {};
 
+        // ── 数据兼容层：规范化任意版本 questions.json ──
+        function normalizeData(raw) {
+            return (raw || []).map((q, i) => {
+                const opts = (q.options || []).filter(o => o && o.key && o.text);
+                const seen = new Set();
+                const clean = opts.filter(o => {
+                    const t = String(o.text).trim();
+                    if (!t || seen.has(t)) return false;
+                    seen.add(t); return true;
+                });
+                const max = q.type === 'multiple' ? 6 : 4;
+                return { ...q, id: q.id || String(i+1), options: clean.slice(0, max) };
+            });
+        }
+
         async function init() {
             try {
                 let data = null;
@@ -350,7 +365,7 @@
                         xhr.send();
                     });
                 }
-                allQuestions = data;
+                allQuestions = normalizeData(data);
                 const savedTheme = localStorage.getItem('theme');
                 if (savedTheme === 'dark') {
                     document.documentElement.setAttribute('data-theme', 'dark');
